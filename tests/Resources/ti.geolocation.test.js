@@ -157,8 +157,7 @@ describe.windowsBroken('Titanium.Geolocation', function () {
 		should(Ti.Geolocation.headingFilter).eql(90);
 	});
 
-	// https://jira.appcelerator.org/browse/TIMOB-26452
-	it.iosBroken('.lastGeolocation', function () {
+	it('.lastGeolocation', function () {
 		should(Ti.Geolocation).have.a.property('lastGeolocation'); // TODO: which is a String/null/undefined?
 	});
 
