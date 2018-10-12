@@ -55,7 +55,7 @@ static XHRBridge *xhrBridge = nil;
 
   NSArray *parts = [[[url path] substringFromIndex:1] componentsSeparatedByString:@"/"];
   NSString *pageToken = [[parts objectAtIndex:0] stringByReplacingOccurrencesOfString:@"_TiA0_" withString:@""];
-  NSString *module = [parts objectAtIndex:1];
+  NSString *moduleName = [parts objectAtIndex:1];
   NSString *method = [parts objectAtIndex:2];
   NSString *prearg = [url query];
   NSString *arguments = prearg == nil ? @"" : [prearg stringByRemovingPercentEncoding];
@@ -65,24 +65,34 @@ static XHRBridge *xhrBridge = nil;
   NSDictionary *event = [decoder fragmentWithString:arguments error:&error];
 
   id<TiEvaluator> context = [[xhrBridge host] contextForToken:pageToken];
-  TiModule *tiModule = (TiModule *)[[xhrBridge host] moduleNamed:module context:context];
-  [tiModule setExecutionContext:context];
+  // FIXME: This doesn't play nice with the new obj-c based modules! Unify the special handling for init with the code in KrollBridge?
+  // Mayeb just fork the behavior altogether here, since I don't think the event stuff will work properly?
+  id module;
+  if ([moduleName isEqualToString:@"API"]) {
+    // Really we need to grab the same instance we stuck into the Ti namespace, not a brand new one. But how?
+    Class moduleClass = NSClassFromString([NSString stringWithFormat:@"%@Module", moduleName]);
+    module = [[moduleClass alloc] init];
+  } else {
+    TiModule *tiModule = (TiModule *)[[xhrBridge host] moduleNamed:moduleName context:context];
+    [tiModule setExecutionContext:context];
+    module = tiModule;
+  }
 
   BOOL executed = YES;
 
   NSString *name = [event objectForKey:@"name"];
   if ([method isEqualToString:@"fireEvent"]) {
-    [tiModule fireEvent:name withObject:[event objectForKey:@"event"]];
+    [module fireEvent:name withObject:[event objectForKey:@"event"]];
   } else if ([method isEqualToString:@"addEventListener"]) {
     id listenerid = [event objectForKey:@"id"];
-    [tiModule addEventListener:[NSArray arrayWithObjects:name, listenerid, nil]];
+    [module addEventListener:[NSArray arrayWithObjects:name, listenerid, nil]];
   } else if ([method isEqualToString:@"removeEventListener"]) {
     id listenerid = [event objectForKey:@"id"];
-    [tiModule removeEventListener:[NSArray arrayWithObjects:name, listenerid, nil]];
+    [module removeEventListener:[NSArray arrayWithObjects:name, listenerid, nil]];
   } else if ([method isEqualToString:@"log"]) {
     NSString *level = [event objectForKey:@"level"];
     NSString *message = [event objectForKey:@"message"];
-    [tiModule performSelector:@selector(log:) withObject:[NSArray arrayWithObjects:level, message, nil]];
+    [module performSelector:@selector(log:withMessage:) withObject:level withObject:message];
   } else {
     executed = NO;
   }
